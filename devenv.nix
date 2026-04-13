@@ -4,10 +4,13 @@
   config,
   inputs,
   ...
-}:
-{
-  packages = with pkgs; [
-    git
-    pnpm
-  ];
+}: {
+  languages.javascript = {
+    enable = true;
+    pnpm = {
+      enable = true;
+      install.enable = true;
+    };
+  };
+  languages.typescript.enable = true;
 }

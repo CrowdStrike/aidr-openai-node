@@ -50,3 +50,8 @@ const response = await client.responses.create({
 
 console.log(response.output_text);
 ```
+
+## Limitations
+
+Guarding streaming output is not supported. Input guards are evaluated for all
+requests, but output guards are only applied to non-streaming responses.
