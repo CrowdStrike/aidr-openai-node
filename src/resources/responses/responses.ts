@@ -88,10 +88,6 @@ export class AidrResponses extends Responses {
     body: ResponseCreateParams,
     options?: OpenAI.RequestOptions
   ): APIPromise<Response> | APIPromise<Stream<ResponseStreamEvent>> {
-    if (body.stream) {
-      return super.create(body, options);
-    }
-
     let messages: {
       role: 'system' | 'user' | 'assistant' | 'developer';
       content: string;
@@ -137,6 +133,12 @@ export class AidrResponses extends Responses {
         return super.create(body, options);
       })
       .then((response) => {
+        if (body.stream) {
+          return response;
+        }
+
+        response = response as Response;
+
         return Promise.all([
           response,
           this._client.aiGuardClient.guardChatCompletions({
@@ -147,45 +149,44 @@ export class AidrResponses extends Responses {
             },
             event_type: 'output',
           }),
-        ]);
-      })
-      .then(([response, outputGuardResponse]) => {
-        if (outputGuardResponse.status === 'Accepted') {
-          return response;
-        }
+        ]).then(([response, outputGuardResponse]) => {
+          if (outputGuardResponse.status === 'Accepted') {
+            return response;
+          }
 
-        if (outputGuardResponse.result?.blocked) {
-          throw new AidrAIGuardBlockedError();
-        }
+          if (outputGuardResponse.result?.blocked) {
+            throw new AidrAIGuardBlockedError();
+          }
 
-        if (
-          outputGuardResponse.result?.transformed &&
-          outputGuardResponse.result?.guard_output?.messages
-        ) {
-          response.output_text =
-            (
-              outputGuardResponse.result.guard_output.messages as {
-                role: 'system' | 'user' | 'assistant' | 'developer';
-                content: string;
-              }[]
-            ).at(-1)?.content ?? '';
+          if (
+            outputGuardResponse.result?.transformed &&
+            outputGuardResponse.result?.guard_output?.messages
+          ) {
+            response.output_text =
+              (
+                outputGuardResponse.result.guard_output.messages as {
+                  role: 'system' | 'user' | 'assistant' | 'developer';
+                  content: string;
+                }[]
+              ).at(-1)?.content ?? '';
 
-          if (response.output.length === 1) {
-            const item = response.output[0];
-            if (isResponseOutputMessage(item)) {
-              item.content = [
-                {
-                  annotations: [],
-                  logprobs: [],
-                  type: 'output_text',
-                  text: response.output_text,
-                },
-              ];
+            if (response.output.length === 1) {
+              const item = response.output[0];
+              if (isResponseOutputMessage(item)) {
+                item.content = [
+                  {
+                    annotations: [],
+                    logprobs: [],
+                    type: 'output_text',
+                    text: response.output_text,
+                  },
+                ];
+              }
             }
           }
-        }
 
-        return response;
+          return response;
+        });
       }) as APIPromise<Response>;
   }
 }
